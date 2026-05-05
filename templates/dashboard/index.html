@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PMT Dashboard</title>
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'dashboard/app.css' %}" />
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="topbar">
+        <div class="brand">
+          <div class="logo"></div>
+          <h1>PMT Terminal</h1>
+          <div class="sub">Portfolio & Market Toolkit</div>
+        </div>
+        <div class="topmeta">
+          {% if last_updated %}<div class="badge">Last update: {{ last_updated }}</div>{% endif %}
+          {% if tickers %}<div class="badge">Universe: {{ tickers|length }}</div>{% endif %}
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="card sidebar">
+          <div class="section-title">
+            <div class="h">Inputs</div>
+            <div class="badge">yfinance</div>
+          </div>
+          <div class="preset-row" style="margin-bottom:10px;">
+            <button class="chip primary" type="button" data-preset="equity">Equity</button>
+            <button class="chip" type="button" data-preset="index">Index</button>
+            <button class="chip" type="button" data-preset="fx">FX</button>
+            <button class="chip" type="button" data-quick-run>Quick-run</button>
+          </div>
+          <form method="get">
+            {% if error %}
+              <div class="err">{{ error }}</div>
+            {% endif %}
+
+            {{ form.non_field_errors }}
+
+            <label>{{ form.tickers.label }}</label>
+            {{ form.tickers }}
+            <div class="hint">{{ form.tickers.help_text }}</div>
+            {% for e in form.tickers.errors %}<div class="hint" style="color:var(--danger)">{{ e }}</div>{% endfor %}
+
+            <label>{{ form.start.label }}</label>
+            {{ form.start }}
+            {% for e in form.start.errors %}<div class="hint" style="color:var(--danger)">{{ e }}</div>{% endfor %}
+
+            <label>{{ form.end.label }}</label>
+            {{ form.end }}
+            {% for e in form.end.errors %}<div class="hint" style="color:var(--danger)">{{ e }}</div>{% endfor %}
+
+            <label>{{ form.frequency.label }}</label>
+            {{ form.frequency }}
+            {% for e in form.frequency.errors %}<div class="hint" style="color:var(--danger)">{{ e }}</div>{% endfor %}
+
+            <label>{{ form.return_type.label }}</label>
+            {{ form.return_type }}
+            {% for e in form.return_type.errors %}<div class="hint" style="color:var(--danger)">{{ e }}</div>{% endfor %}
+
+            <label>{{ form.initial_capital.label }}</label>
+            {{ form.initial_capital }}
+            {% for e in form.initial_capital.errors %}<div class="hint" style="color:var(--danger)">{{ e }}</div>{% endfor %}
+
+            <label>{{ form.confidence.label }}</label>
+            {{ form.confidence }}
+            {% for e in form.confidence.errors %}<div class="hint" style="color:var(--danger)">{{ e }}</div>{% endfor %}
+
+            <label>{{ form.var_method.label }}</label>
+            <div class="checklist">{{ form.var_method }}</div>
+            {% for e in form.var_method.errors %}<div class="hint" style="color:var(--danger)">{{ e }}</div>{% endfor %}
+
+            <label>{{ form.horizon.label }}</label>
+            {{ form.horizon }}
+            <div class="hint">{{ form.horizon.help_text }}</div>
+            {% for e in form.horizon.errors %}<div class="hint" style="color:var(--danger)">{{ e }}</div>{% endfor %}
+
+            <label>{{ form.mc_sims.label }}</label>
+            {{ form.mc_sims }}
+            {% for e in form.mc_sims.errors %}<div class="hint" style="color:var(--danger)">{{ e }}</div>{% endfor %}
+
+            <label>{{ form.benchmark.label }}</label>
+            {{ form.benchmark }}
+            <div class="hint">{{ form.benchmark.help_text }}</div>
+            {% for e in form.benchmark.errors %}<div class="hint" style="color:var(--danger)">{{ e }}</div>{% endfor %}
+
+            <label>{{ form.rolling_window.label }}</label>
+            {{ form.rolling_window }}
+            <div class="hint">{{ form.rolling_window.help_text }}</div>
+            {% for e in form.rolling_window.errors %}<div class="hint" style="color:var(--danger)">{{ e }}</div>{% endfor %}
+
+            <label>{{ form.rf_annual.label }}</label>
+            {{ form.rf_annual }}
+            {% for e in form.rf_annual.errors %}<div class="hint" style="color:var(--danger)">{{ e }}</div>{% endfor %}
+
+            <button class="btn" type="submit">Fetch & Visualize</button>
+            <button class="btn secondary" type="button" data-quick-run style="margin-top:8px;">Quick-run (use current inputs)</button>
+            <div class="hint muted">
+              VaR/ES are computed on the selected return frequency. Losses are shown as positive numbers (e.g. 0.05 means -5%).
+            </div>
+          </form>
+        </div>
+
+        <div class="plots">
+          {% if tickers %}
+            <div class="card">
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+                <div class="badge">Tickers: {{ tickers|join:", " }}</div>
+                {% if last_updated %}<div class="badge">Last: {{ last_updated }}</div>{% endif %}
+              </div>
+              <div class="kpis">
+                <div class="kpi">
+                  <div class="k">Portfolio PnL</div>
+                  <div class="v">{% if portfolio.pnl is not None %}{{ portfolio.pnl|floatformat:2 }}{% else %}—{% endif %}</div>
+                </div>
+                <div class="kpi">
+                  <div class="k">Max Drawdown</div>
+                  <div class="v">{% if portfolio.max_drawdown is not None %}{{ portfolio.max_drawdown|floatformat:4 }}{% else %}—{% endif %}</div>
+                </div>
+                <div class="kpi">
+                  <div class="k">VaR</div>
+                  <div class="v">{% if portfolio.var is not None %}{{ portfolio.var|floatformat:4 }}{% else %}—{% endif %}</div>
+                </div>
+                <div class="kpi">
+                  <div class="k">TE (ann.)</div>
+                  <div class="v">{% if portfolio.tracking_error_annual is not None %}{{ portfolio.tracking_error_annual|floatformat:4 }}{% else %}—{% endif %}</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card" data-tabs>
+              <div class="tabs" role="tablist" aria-label="Dash tabs">
+                <button class="tab" type="button" role="tab" aria-selected="true" data-target="panel-overview">Overview</button>
+                <button class="tab" type="button" role="tab" aria-selected="false" data-target="panel-rr">Risk–Return</button>
+                <button class="tab" type="button" role="tab" aria-selected="false" data-target="panel-risk">Risk</button>
+                <button class="tab" type="button" role="tab" aria-selected="false" data-target="panel-attrib">Attribution</button>
+                <button class="tab" type="button" role="tab" aria-selected="false" data-target="panel-benchmark">Benchmark</button>
+                <button class="tab" type="button" role="tab" aria-selected="false" data-target="panel-corr">Correlation</button>
+                <button class="tab" type="button" role="tab" aria-selected="false" data-target="panel-rolling">Rolling</button>
+              </div>
+
+              <div class="tabpanels" style="margin-top:12px;">
+                <section id="panel-overview" role="tabpanel" data-active="true">
+                  <div class="card" style="box-shadow:none; margin:0; padding:0; border:none; background:transparent;">
+                    {{ wealth_plot_html|safe }}
+                  </div>
+                  <div style="height:12px"></div>
+                  <div class="card" style="box-shadow:none; margin:0; padding:0; border:none; background:transparent;">
+                    {{ returns_plot_html|safe }}
+                  </div>
+                </section>
+
+                <section id="panel-rr" role="tabpanel" data-active="false">
+                  <div class="card" style="box-shadow:none; margin:0; padding:0; border:none; background:transparent;">
+                    {{ scatter_plot_html|safe }}
+                  </div>
+                  <div class="hint" style="margin-top:10px;">
+                    X=Vol(ann.), Y=CAGR, color=Sharpe, size=|MaxDD|.
+                  </div>
+                </section>
+
+                <section id="panel-risk" role="tabpanel" data-active="false">
+                  <div class="card" style="box-shadow:none; margin:0; padding:0; border:none; background:transparent;">
+                    {{ drawdown_plot_html|safe }}
+                  </div>
+                  <div style="height:12px"></div>
+                  <div class="card" style="box-shadow:none; margin:0; padding:0; border:none; background:transparent;">
+                    {{ dist_plot_html|safe }}
+                  </div>
+                  <div style="height:12px"></div>
+                  <div class="card" style="box-shadow:none; margin:0; padding:0; border:none; background:transparent;">
+                    {{ var_methods_plot_html|safe }}
+                  </div>
+                  <div style="height:12px"></div>
+                  <div class="card" style="box-shadow:none; margin:0; padding:0; border:none; background:transparent;">
+                    {{ es_methods_plot_html|safe }}
+                  </div>
+                </section>
+
+                <section id="panel-attrib" role="tabpanel" data-active="false">
+                  {% if attrib_period_plot_html %}
+                    <div class="card" style="box-shadow:none; margin:0; padding:0; border:none; background:transparent;">
+                      {{ attrib_period_plot_html|safe }}
+                    </div>
+                    <div style="height:12px"></div>
+                    <div class="card" style="box-shadow:none; margin:0; padding:0; border:none; background:transparent;">
+                      {{ attrib_cum_plot_html|safe }}
+                    </div>
+                  {% else %}
+                    <div class="hint">Attribution requires overlapping return history across tickers.</div>
+                  {% endif %}
+                </section>
+
+                <section id="panel-corr" role="tabpanel" data-active="false">
+                  <div class="card" style="box-shadow:none; margin:0; padding:0; border:none; background:transparent;">
+                    {{ corr_plot_html|safe }}
+                  </div>
+                </section>
+
+                <section id="panel-benchmark" role="tabpanel" data-active="false">
+                  <div class="hint" style="margin-bottom:10px;">
+                    Add a Benchmark ticker (e.g. <span class="badge">^GSPC</span>) to enable beta/alpha/TE/IR calculations.
+                  </div>
+                  <div class="card" style="box-shadow:none; margin:0; padding:0; border:none; background:transparent;">
+                    {{ benchmark_plot_html|safe }}
+                  </div>
+                </section>
+
+                <section id="panel-rolling" role="tabpanel" data-active="false">
+                  {% if rolling_vol_plot_html %}
+                    <div class="card" style="box-shadow:none; margin:0; padding:0; border:none; background:transparent;">
+                      {{ rolling_vol_plot_html|safe }}
+                    </div>
+                  {% else %}
+                    <div class="hint">Set Rolling window to show rolling metrics.</div>
+                  {% endif %}
+                  {% if rolling_sharpe_plot_html %}
+                    <div style="height:12px"></div>
+                    <div class="card" style="box-shadow:none; margin:0; padding:0; border:none; background:transparent;">
+                      {{ rolling_sharpe_plot_html|safe }}
+                    </div>
+                  {% endif %}
+                </section>
+              </div>
+            </div>
+
+            <div class="card">
+              <div style="font-weight:700; margin-bottom:10px;">Metrics (per ticker)</div>
+              <div style="overflow:auto;">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Ticker</th>
+                      <th>Periods</th>
+                      <th>CAGR</th>
+                      <th>Vol (ann.)</th>
+                      <th>Sharpe</th>
+                      <th>Sortino</th>
+                      <th>MaxDD</th>
+                      <th>Beta</th>
+                      <th>Alpha (ann.)</th>
+                      <th>TE (ann.)</th>
+                      <th>IR</th>
+                      <th>VaR</th>
+                      <th>ES</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for m in metrics %}
+                      <tr>
+                        <td>{{ m.ticker }}</td>
+                        <td>{{ m.n_periods }}</td>
+                        <td>{% if m.cagr is not None %}{{ m.cagr|floatformat:4 }}{% else %}—{% endif %}</td>
+                        <td>{% if m.vol_annual is not None %}{{ m.vol_annual|floatformat:4 }}{% else %}—{% endif %}</td>
+                        <td>{% if m.sharpe is not None %}{{ m.sharpe|floatformat:3 }}{% else %}—{% endif %}</td>
+                        <td>{% if m.sortino is not None %}{{ m.sortino|floatformat:3 }}{% else %}—{% endif %}</td>
+                        <td>{% if m.max_drawdown is not None %}{{ m.max_drawdown|floatformat:4 }}{% else %}—{% endif %}</td>
+                        <td>{% if m.beta is not None %}{{ m.beta|floatformat:3 }}{% else %}—{% endif %}</td>
+                        <td>{% if m.alpha_annual is not None %}{{ m.alpha_annual|floatformat:4 }}{% else %}—{% endif %}</td>
+                        <td>{% if m.tracking_error_annual is not None %}{{ m.tracking_error_annual|floatformat:4 }}{% else %}—{% endif %}</td>
+                        <td>{% if m.information_ratio is not None %}{{ m.information_ratio|floatformat:3 }}{% else %}—{% endif %}</td>
+                        <td>{% if m.var_monthly is not None %}{{ m.var_monthly|floatformat:4 }}{% else %}—{% endif %}</td>
+                        <td>{% if m.es_monthly is not None %}{{ m.es_monthly|floatformat:4 }}{% else %}—{% endif %}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+              <div class="hint muted">Annualization follows Frequency. Table VaR/ES display the first selected method.</div>
+            </div>
+          {% else %}
+            <div class="card">
+              <div style="font-weight:700; margin-bottom:6px;">How to use</div>
+              <div class="hint">
+                Input tickers and click <strong>Fetch & Visualize</strong>.<br />
+                Examples: <span class="badge">7203.T</span> <span class="badge">9984.T</span> <span class="badge">^N225</span>
+              </div>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    <script src="{% static 'dashboard/tabs.js' %}"></script>
+    <script src="{% static 'dashboard/presets.js' %}"></script>
+  </body>
+</html>
+
